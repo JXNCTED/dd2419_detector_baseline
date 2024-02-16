@@ -25,7 +25,7 @@ LEARNING_RATE = 1e-4
 WEIGHT_POS = 1
 WEIGHT_NEG = 1
 WEIGHT_REG = 1
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 
 
 def compute_loss(
@@ -76,23 +76,27 @@ def train(device: str = "cpu") -> None:
 
     wandb.watch(detector)
 
+    # apply augmentation
+    # i.e. color jitter
     input_transforms = v2.Compose(
         [
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
+            # before or after normalization?
+            v2.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
 
     dataset = CocoDetection(
-        root="./dd2419_coco/training",
-        annFile="./dd2419_coco/annotations/training.json",
+        root="./dataset/training",
+        annFile="./dataset/annotations/merged_training.json",
         transforms=input_transforms,
     )
     dataset = wrap_dataset_for_transforms_v2(dataset)
     val_dataset = CocoDetection(
-        root="./dd2419_coco/validation",
-        annFile="./dd2419_coco/annotations/validation.json",
+        root="./dataset/validation",
+        annFile="./dataset/annotations/merged_validation.json",
         transforms=input_transforms,  # make sure not to accidentally augment validation data
     )
     val_dataset = wrap_dataset_for_transforms_v2(val_dataset)
@@ -122,6 +126,10 @@ def train(device: str = "cpu") -> None:
 
     # init optimizer
     optimizer = torch.optim.Adam(detector.parameters(), lr=LEARNING_RATE)
+    # init scheduler
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+    #     optimizer, T_0=100, T_mult=2, verbose=True
+    # )
 
     # load test images
     # these will be evaluated in regular intervals
@@ -134,6 +142,7 @@ def train(device: str = "cpu") -> None:
         if file_name.endswith(".jpg"):
             file_path = os.path.join(directory, file_name)
             test_images.append(Image.open(file_path))
+    print("Loaded {} test images".format(len(test_images)))
 
     if test_images:
         show_test_images = True
@@ -200,7 +209,7 @@ def train(device: str = "cpu") -> None:
                         )
                         plt.close()
                 detector.train()
-
+            # scheduler.step()
             current_iteration += 1
             if current_iteration > NUM_ITERATIONS:
                 break
@@ -288,6 +297,7 @@ def validate(
                 current_iteration, loss / count
             ),
         )
+
     detector.train()
 
 

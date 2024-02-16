@@ -55,8 +55,10 @@ class Detector(nn.Module):
         # Where confidence is predicted IOU * probability of object center in this cell
         self.out_cells_x = 20
         self.out_cells_y = 15
-        self.img_height = 480.0
-        self.img_width = 640.0
+        # self.img_height = 480.0
+        # self.img_width = 640.0
+        self.img_height = 1280.0
+        self.img_width = 720.0
 
     def forward(self, inp: torch.Tensor) -> torch.Tensor:
         """Forward pass.

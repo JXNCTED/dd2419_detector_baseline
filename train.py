@@ -25,7 +25,7 @@ LEARNING_RATE = 1e-4
 WEIGHT_POS = 1
 WEIGHT_NEG = 1
 WEIGHT_REG = 1
-BATCH_SIZE = 4
+BATCH_SIZE = 8
 
 
 def compute_loss(
@@ -83,14 +83,14 @@ def train(device: str = "cpu") -> None:
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             # before or after normalization?
-            v2.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5),
+            # v2.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
 
     dataset = CocoDetection(
-        root="./dataset/training",
-        annFile="./dataset/annotations/merged_training.json",
+        root="./dataset/dd2419_23_data_b/train",
+        annFile="./dataset/dd2419_23_data_b/annotations/training.json",
         transforms=input_transforms,
     )
     dataset = wrap_dataset_for_transforms_v2(dataset)

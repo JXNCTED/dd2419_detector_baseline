@@ -42,8 +42,8 @@ def draw_detections(
         plt.imshow(
             confidence,
             interpolation="nearest",
-            # extent=(0, 640, 480, 0),
-            extent=(0, 1280, 720, 0),
+            extent=(0, 640, 480, 0),
+            # extent=(0, 1280, 720, 0),
             alpha=0.5,
         )
     for bb in bbs:

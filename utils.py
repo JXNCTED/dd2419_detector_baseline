@@ -1,4 +1,5 @@
 """Utility functions to handle object detection."""
+
 from typing import Dict, List, Optional
 
 import matplotlib.patches as patches
@@ -6,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image
+import math
 
 from detector import BoundingBox
 
@@ -38,14 +40,14 @@ def draw_detections(
     """
     fig, ax = plt.subplots(1)
     plt.imshow(image)
-    if confidence is not None:
-        plt.imshow(
-            confidence,
-            interpolation="nearest",
-            extent=(0, 640, 480, 0),
-            # extent=(0, 1280, 720, 0),
-            alpha=0.5,
-        )
+    # if confidence is not None:
+    #     plt.imshow(
+    #         confidence,
+    #         interpolation="nearest",
+    #         extent=(0, 640, 480, 0),
+    #         # extent=(0, 1280, 720, 0),
+    #         alpha=0.5,
+    #     )
     for bb in bbs:
         rect = patches.Rectangle(
             (bb["x"], bb["y"]),
@@ -56,12 +58,24 @@ def draw_detections(
             facecolor="none",
         )
         ax.add_patch(rect)
+        category = bb["category"]
+        category = math.floor(category + 0.5)
+
+        # plt.text(
+        #     bb["x"],
+        #     bb["y"],
+        #     category,
+        # )
+        if category < 0.5:
+            category = 0
+        if category > 14:
+            category = 14
 
         if category_dict is not None:
             plt.text(
                 bb["x"],
                 bb["y"],
-                category_dict[bb["category"]]["name"],
+                category_dict[category]["name"],
             )
 
     # Save matplotlib figure to numpy array without any borders

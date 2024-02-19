@@ -18,6 +18,8 @@ import utils
 import wandb
 from detector import Detector
 
+import json
+
 NUM_CATEGORIES = 15
 VALIDATION_ITERATION = 250
 NUM_ITERATIONS = 10000
@@ -25,6 +27,7 @@ LEARNING_RATE = 1e-4
 WEIGHT_POS = 1
 WEIGHT_NEG = 1
 WEIGHT_REG = 1
+WEIGHT_CLS = 1
 BATCH_SIZE = 8
 
 
@@ -60,7 +63,11 @@ def compute_loss(
         prediction_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
         target_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
     )
-    return reg_mse, pos_mse, neg_mse
+    cls_mse = nn.functional.mse_loss(
+        prediction_batch[pos_indices[0], 5, pos_indices[1], pos_indices[2]],
+        target_batch[pos_indices[0], 5, pos_indices[1], pos_indices[2]],
+    )
+    return reg_mse, pos_mse, neg_mse, cls_mse
 
 
 def train(device: str = "cpu") -> None:
@@ -87,6 +94,9 @@ def train(device: str = "cpu") -> None:
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
+    category_dict = {}
+    with open("./dataset/dd2419_23_data_b/annotations/training.json") as training_json:
+        category_dict = json.load(training_json)["categories"]
 
     dataset = CocoDetection(
         root="./dataset/dd2419_23_data_b/train",
@@ -162,8 +172,13 @@ def train(device: str = "cpu") -> None:
             # run network
             out = detector(img_batch)
 
-            reg_mse, pos_mse, neg_mse = compute_loss(out, target_batch)
-            loss = WEIGHT_POS * pos_mse + WEIGHT_REG * reg_mse + WEIGHT_NEG * neg_mse
+            reg_mse, pos_mse, neg_mse, cls_mse = compute_loss(out, target_batch)
+            loss = (
+                WEIGHT_POS * pos_mse
+                + WEIGHT_REG * reg_mse
+                + WEIGHT_NEG * neg_mse
+                + WEIGHT_CLS * cls_mse
+            )
 
             # optimize
             optimizer.zero_grad()
@@ -176,6 +191,7 @@ def train(device: str = "cpu") -> None:
                     "loss pos": pos_mse.item(),
                     "loss neg": neg_mse.item(),
                     "loss reg": reg_mse.item(),
+                    "loss cls": cls_mse.item(),
                 },
                 step=current_iteration,
             )
@@ -202,6 +218,7 @@ def train(device: str = "cpu") -> None:
                             bbs[i],
                             confidence=out[i, 4, :, :],
                             channel_first=True,
+                            category_dict=category_dict,
                         )
                         wandb.log(
                             {"test_img_{i}".format(i=i): wandb.Image(result_image)},
@@ -241,17 +258,23 @@ def validate(
     coco_pred = copy.deepcopy(val_dataloader.dataset.coco)
     coco_pred.dataset["annotations"] = []
     with torch.no_grad():
-        count = total_pos_mse = total_reg_mse = total_neg_mse = loss = 0
+        count = total_pos_mse = total_reg_mse = total_neg_mse = total_cls_mse = loss = 0
         image_id = ann_id = 0
         for val_images, val_anns in val_dataloader:
             val_img_batch = torch.stack(val_images).to(device)
             val_target_batch = detector.anns_to_target_batch(val_anns).to(device)
             val_out = detector(val_img_batch)
-            reg_mse, pos_mse, neg_mse = compute_loss(val_out, val_target_batch)
+            reg_mse, pos_mse, neg_mse, cls_mse = compute_loss(val_out, val_target_batch)
             total_reg_mse += reg_mse
             total_pos_mse += pos_mse
             total_neg_mse += neg_mse
-            loss += WEIGHT_POS * pos_mse + WEIGHT_REG * reg_mse + WEIGHT_NEG * neg_mse
+            total_cls_mse += cls_mse
+            loss += (
+                WEIGHT_POS * pos_mse
+                + WEIGHT_REG * reg_mse
+                + WEIGHT_NEG * neg_mse
+                + WEIGHT_CLS * cls_mse
+            )
             imgs_bbs = detector.out_to_bbs(val_out, topk=100)
             for img_bbs in imgs_bbs:
                 for img_bb in img_bbs:

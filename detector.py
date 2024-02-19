@@ -3,6 +3,7 @@
 Inspired by
 You only look once: Unified, real-time object detection, Redmon, 2016.
 """
+
 from typing import List, Optional, Tuple, TypedDict
 
 import numpy as np
@@ -44,15 +45,18 @@ class Detector(nn.Module):
         self.features = models.mobilenet_v2(pretrained=True).features
         # output of mobilenet_v2 will be 1280x15x20 for 480x640 input images
 
-        self.out_channels = 5
-        self.head = nn.Conv2d(in_channels=1280, out_channels=self.out_channels, kernel_size=1)
+        self.out_channels = 6
+        self.head = nn.Conv2d(
+            in_channels=1280, out_channels=self.out_channels, kernel_size=1
+        )
         # 1x1 Convolution to reduce channels to out_channels without changing H and W
 
-        # 1280x15x20 -> 5x15x20, where each element 5 channel tuple corresponds to
-        #   (rel_x_offset, rel_y_offset, rel_x_width, rel_y_height, confidence
+        # 1280x15x20 -> 6x15x20, where each element 6 channel tuple corresponds to
+        #   (rel_x_offset, rel_y_offset, rel_x_width, rel_y_height, confidence, category
         # Where rel_x_offset, rel_y_offset is relative offset from cell_center
         # Where rel_x_width, rel_y_width is relative to image size
         # Where confidence is predicted IOU * probability of object center in this cell
+        # Where category is the detected object
         self.out_cells_x = 20
         self.out_cells_y = 15
         self.img_height = 480.0
@@ -70,7 +74,7 @@ class Detector(nn.Module):
 
         Returns:
             The output tensor encoding the predicted bounding boxes.
-            Shape (N, 5, self.out_cells_y, self.out_cells_y).
+            Shape (N, 6, self.out_cells_y, self.out_cells_y).
         """
         features = self.features(inp)
         out = self.head(features)  # Linear (i.e., no) activation
@@ -85,13 +89,14 @@ class Detector(nn.Module):
         Args:
             out (torch.tensor):
                 The output tensor encoding the predicted bounding boxes.
-                Shape (N, 5, self.out_cells_y, self.out_cells_y).
-                The 5 channels encode in order:
+                Shape (N, 6, self.out_cells_y, self.out_cells_y).
+                The 6 channels encode in order:
                     - the x offset,
                     - the y offset,
                     - the width,
                     - the height,
                     - the confidence.
+                    - the category
             threshold:
                 The confidence threshold above which a bounding box will be accepted.
                 If None, the topk bounding boxes will be returned.
@@ -139,6 +144,7 @@ class Detector(nn.Module):
                         "x": x,
                         "y": y,
                         "score": o[4, bb_index[0], bb_index[1]].item(),
+                        "category": o[5, bb_index[0], bb_index[1]].item(),
                     }
                 )
             bbs.append(img_bbs)
@@ -166,10 +172,12 @@ class Detector(nn.Module):
 
         # If there is no bb, the first 4 channels will not influence the loss
         # -> can be any number (will be kept at 0)
-        target = torch.zeros(len(anns), self.out_channels, self.out_cells_y, self.out_cells_x)
+        target = torch.zeros(
+            len(anns), self.out_channels, self.out_cells_y, self.out_cells_x
+        )
 
         for i, ann in enumerate(anns):
-            for box in ann["boxes"]:
+            for j, box in enumerate(ann["boxes"]):
                 x_center = (box[0] + box[2]) / 2
                 y_center = (box[1] + box[3]) / 2
                 x_center_rel = x_center / self.img_width * self.out_cells_x
@@ -182,6 +190,7 @@ class Detector(nn.Module):
                 y_cell_pos = y_center_rel - y_ind
                 rel_width = (box[2] - box[0]) / self.img_width
                 rel_height = (box[3] - box[1]) / self.img_height
+                rel_id = ann["labels"][j]
 
                 # channels, rows (y cells), cols (x cells)
                 target[i, 4, y_ind, x_ind] = 1
@@ -191,5 +200,6 @@ class Detector(nn.Module):
                 target[i, 1, y_ind, x_ind] = y_cell_pos
                 target[i, 2, y_ind, x_ind] = rel_width
                 target[i, 3, y_ind, x_ind] = rel_height
+                target[i, 5, y_ind, x_ind] = rel_id
 
         return target

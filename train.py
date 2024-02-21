@@ -21,10 +21,10 @@ from detector import Detector
 import json
 
 NUM_CATEGORIES = 15
-VALIDATION_ITERATION = 50
+VALIDATION_ITERATION = 250
 VISUALIZATION_ITERATION = 250
 NUM_ITERATIONS = 10000
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 1e-4
 WEIGHT_POS = 1
 WEIGHT_NEG = 1
 WEIGHT_REG = 1
@@ -64,9 +64,8 @@ def compute_loss(
         prediction_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
         target_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
     )
-    cls_mse = nn.functional.mse_loss(
-        prediction_batch[pos_indices[0], 5, pos_indices[1], pos_indices[2]],
-        target_batch[pos_indices[0], 5, pos_indices[1], pos_indices[2]],
+    cls_mse = nn.functional.cross_entropy(
+        prediction_batch[:, 4, :, :], target_batch[:, 4, :, :]
     )
     return reg_mse, pos_mse, neg_mse, cls_mse
 
@@ -144,9 +143,9 @@ def train(device: str = "cpu") -> None:
     # init optimizer
     optimizer = torch.optim.Adam(detector.parameters(), lr=LEARNING_RATE)
     # init scheduler
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer=optimizer, mode="min", verbose=True
-    )
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    #     optimizer=optimizer, mode="min", verbose=True
+    # )
 
     # load test images
     # these will be evaluated in regular intervals
@@ -210,7 +209,7 @@ def train(device: str = "cpu") -> None:
             # Validate every N iterations
             if current_iteration % VALIDATION_ITERATION == 1:
                 validate(detector, val_dataloader, current_iteration, device)
-                scheduler.step(loss)
+                # scheduler.step(loss)
 
             # generate visualization every N iterations
             if current_iteration % VISUALIZATION_ITERATION == 1 and show_test_images:

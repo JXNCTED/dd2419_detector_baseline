@@ -21,9 +21,10 @@ from detector import Detector
 import json
 
 NUM_CATEGORIES = 15
-VALIDATION_ITERATION = 250
+VALIDATION_ITERATION = 50
+VISUALIZATION_ITERATION = 250
 NUM_ITERATIONS = 10000
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-3
 WEIGHT_POS = 1
 WEIGHT_NEG = 1
 WEIGHT_REG = 1
@@ -143,9 +144,9 @@ def train(device: str = "cpu") -> None:
     # init optimizer
     optimizer = torch.optim.Adam(detector.parameters(), lr=LEARNING_RATE)
     # init scheduler
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-    #     optimizer, T_0=100, T_mult=2, verbose=True
-    # )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer=optimizer, mode="min", verbose=True
+    )
 
     # load test images
     # these will be evaluated in regular intervals
@@ -209,9 +210,10 @@ def train(device: str = "cpu") -> None:
             # Validate every N iterations
             if current_iteration % VALIDATION_ITERATION == 1:
                 validate(detector, val_dataloader, current_iteration, device)
+                scheduler.step(loss)
 
             # generate visualization every N iterations
-            if current_iteration % VALIDATION_ITERATION == 1 and show_test_images:
+            if current_iteration % VISUALIZATION_ITERATION == 1 and show_test_images:
                 detector.eval()
                 with torch.no_grad():
                     out = detector(test_image_batch).cpu()
@@ -232,7 +234,6 @@ def train(device: str = "cpu") -> None:
                         )
                         plt.close()
                 detector.train()
-            # scheduler.step()
             current_iteration += 1
             if current_iteration > NUM_ITERATIONS:
                 break

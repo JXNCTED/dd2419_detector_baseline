@@ -89,8 +89,14 @@ def train(device: str = "cpu") -> None:
         [
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
-            # before or after normalization?
-            # v2.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5),
+            v2.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1),
+            v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+    val_input_transforms = v2.Compose(
+        [
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
@@ -100,14 +106,14 @@ def train(device: str = "cpu") -> None:
 
     dataset = CocoDetection(
         root="./dataset/dd2419_23_data_b/train",
-        annFile="./dataset/dd2419_23_data_b/annotations/training.json",
+        annFile="./dataset/dd2419_23_data_b/annotations/train_split.json",
         transforms=input_transforms,
     )
     dataset = wrap_dataset_for_transforms_v2(dataset)
     val_dataset = CocoDetection(
-        root="./dataset/validation",
-        annFile="./dataset/annotations/merged_validation.json",
-        transforms=input_transforms,  # make sure not to accidentally augment validation data
+        root="./dataset/dd2419_23_data_b/train",
+        annFile="./dataset/dd2419_23_data_b/annotations/val_split.json",
+        transforms=val_input_transforms,  # make sure not to accidentally augment validation data
     )
     val_dataset = wrap_dataset_for_transforms_v2(val_dataset)
 
@@ -156,7 +162,7 @@ def train(device: str = "cpu") -> None:
 
     if test_images:
         show_test_images = True
-        test_image_batch = torch.stack(input_transforms(test_images)).to(device)
+        test_image_batch = torch.stack(val_input_transforms(test_images)).to(device)
 
     print("Training started...")
 
@@ -309,6 +315,7 @@ def validate(
                 "val loss pos": (total_pos_mse / count),
                 "val loss neg": (total_neg_mse / count),
                 "val loss reg": (total_reg_mse / count),
+                "val loss cls": (total_cls_mse / count),
                 "val AP @IoU 0.5:0.95": coco_eval.stats[0],
                 "val AP @IoU 0.5": coco_eval.stats[1],
                 "val AR @IoU 0.5:0.95": coco_eval.stats[8],

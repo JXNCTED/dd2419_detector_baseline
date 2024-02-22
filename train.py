@@ -23,8 +23,8 @@ import json
 NUM_CATEGORIES = 15
 VALIDATION_ITERATION = 250
 VISUALIZATION_ITERATION = 250
-NUM_ITERATIONS = 10000
-LEARNING_RATE = 1e-4
+NUM_ITERATIONS = 50000
+LEARNING_RATE = 1e-3
 WEIGHT_POS = 1
 WEIGHT_NEG = 1
 WEIGHT_REG = 1
@@ -64,9 +64,9 @@ def compute_loss(
         prediction_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
         target_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
     )
-    cls_ce = nn.functional.cross_entropy(
-        prediction_batch[:, 5:, :, :].permute(0, 2, 3, 1).reshape(-1, NUM_CATEGORIES),
-        target_batch[:, 5:, :, :].argmax(dim=1).reshape(-1),
+    cls_ce = nn.functional.mse_loss(
+        prediction_batch[pos_indices[0], 5, pos_indices[1], pos_indices[2]],
+        target_batch[pos_indices[0], 5, pos_indices[1], pos_indices[2]],
     )
     return reg_mse, pos_mse, neg_mse, cls_ce
 

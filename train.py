@@ -21,7 +21,7 @@ from detector import Detector
 import json
 
 NUM_CATEGORIES = 15
-VALIDATION_ITERATION = 250
+VALIDATION_ITERATION = 50
 VISUALIZATION_ITERATION = 250
 NUM_ITERATIONS = 50000
 LEARNING_RATE = 1e-3
@@ -144,8 +144,13 @@ def train(device: str = "cpu") -> None:
     if not os.path.exists("runs"):
         os.makedirs("runs")
 
-    num_runs = len([name for name in os.listdir("runs")
-                   if os.path.isdir(os.path.join("runs", name))])
+    num_runs = len(
+        [
+            name
+            for name in os.listdir("runs")
+            if os.path.isdir(os.path.join("runs", name))
+        ]
+    )
     if not os.path.exists(os.path.join("runs", "run_{}".format(num_runs))):
         os.makedirs(os.path.join("runs", "run_{}".format(num_runs)))
 
@@ -156,9 +161,9 @@ def train(device: str = "cpu") -> None:
     # init optimizer
     optimizer = torch.optim.Adam(detector.parameters(), lr=LEARNING_RATE)
     # init scheduler
-    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    #     optimizer=optimizer, mode="min", verbose=True
-    # )
+    scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer=optimizer, step_size=10000, gamma=0.1
+    )
 
     # load test images
     # these will be evaluated in regular intervals
@@ -217,7 +222,9 @@ def train(device: str = "cpu") -> None:
             )
 
             print(
-                "Iteration: {}, loss: {}".format(current_iteration, loss.item()),
+                "Iteration: {}, loss: {}, lr: {}".format(
+                    current_iteration, loss.item(), scheduler.get_last_lr()[0]
+                ),
             )
 
             # Validate every N iterations
@@ -226,7 +233,6 @@ def train(device: str = "cpu") -> None:
                 if loss < min_val_loss:
                     min_val_loss = loss
                     utils.save_model(detector, best_path)
-                # scheduler.step(loss)
 
             # generate visualization every N iterations
             if current_iteration % VISUALIZATION_ITERATION == 1 and show_test_images:
@@ -250,6 +256,7 @@ def train(device: str = "cpu") -> None:
                         )
                         plt.close()
                 detector.train()
+            scheduler.step()
 
             utils.save_model(detector, new_path)
             current_iteration += 1

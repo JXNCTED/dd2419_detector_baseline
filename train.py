@@ -141,6 +141,16 @@ def train(device: str = "cpu") -> None:
     time_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     run_name = wandb.config.run_name = "det_{}".format(time_string)
 
+    if not os.path.exists("runs"):
+        os.makedirs("runs")
+
+    num_runs = len([name for name in os.listdir("runs")
+                   if os.path.isdir(os.path.join("runs", name))])
+
+    run_dir = os.path.join("runs", "run_{}".format(num_runs))
+    best_path = os.path.join(run_dir, "best.pt")
+    new_path = os.path.join(run_dir, "new.pt")
+
     # init optimizer
     optimizer = torch.optim.Adam(detector.parameters(), lr=LEARNING_RATE)
     # init scheduler
@@ -168,6 +178,7 @@ def train(device: str = "cpu") -> None:
     print("Training started...")
 
     current_iteration = 1
+    min_val_loss = float("inf")
     while current_iteration <= NUM_ITERATIONS:
         for images, anns in dataloader:
             # convert bounding boxes to target tensor
@@ -210,6 +221,9 @@ def train(device: str = "cpu") -> None:
             # Validate every N iterations
             if current_iteration % VALIDATION_ITERATION == 1:
                 validate(detector, val_dataloader, current_iteration, device)
+                if loss < min_val_loss:
+                    min_val_loss = loss
+                    utils.save_model(detector, best_path)
                 # scheduler.step(loss)
 
             # generate visualization every N iterations
@@ -234,6 +248,8 @@ def train(device: str = "cpu") -> None:
                         )
                         plt.close()
                 detector.train()
+
+            utils.save_model(detector, new_path)
             current_iteration += 1
             if current_iteration > NUM_ITERATIONS:
                 break
@@ -241,6 +257,7 @@ def train(device: str = "cpu") -> None:
     print("\nTraining completed (max iterations reached)")
 
     model_path = "{}.pt".format(run_name)
+
     utils.save_model(detector, model_path)
     wandb.save(model_path)
 

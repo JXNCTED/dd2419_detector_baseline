@@ -64,10 +64,11 @@ def compute_loss(
         prediction_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
         target_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
     )
-    cls_mse = nn.functional.cross_entropy(
-        prediction_batch[:, 4, :, :], target_batch[:, 4, :, :]
+    cls_ce = nn.functional.cross_entropy(
+        prediction_batch[:, 5:, :, :].permute(0, 2, 3, 1).reshape(-1, NUM_CATEGORIES),
+        target_batch[:, 5:, :, :].argmax(dim=1).reshape(-1),
     )
-    return reg_mse, pos_mse, neg_mse, cls_mse
+    return reg_mse, pos_mse, neg_mse, cls_ce
 
 
 def train(device: str = "cpu") -> None:

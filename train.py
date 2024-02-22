@@ -146,6 +146,8 @@ def train(device: str = "cpu") -> None:
 
     num_runs = len([name for name in os.listdir("runs")
                    if os.path.isdir(os.path.join("runs", name))])
+    if not os.path.exists(os.path.join("runs", "run_{}".format(num_runs))):
+        os.makedirs(os.path.join("runs", "run_{}".format(num_runs)))
 
     run_dir = os.path.join("runs", "run_{}".format(num_runs))
     best_path = os.path.join(run_dir, "best.pt")

@@ -59,17 +59,6 @@ def draw_detections(
         )
         ax.add_patch(rect)
         category = bb["category"]
-        category = math.floor(category + 0.5)
-
-        # plt.text(
-        #     bb["x"],
-        #     bb["y"],
-        #     category,
-        # )
-        if category < 0.5:
-            category = 0
-        if category > 14:
-            category = 14
 
         if category_dict is not None:
             plt.text(

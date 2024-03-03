@@ -23,12 +23,12 @@ import json
 NUM_CATEGORIES = 15
 VALIDATION_ITERATION = 50
 VISUALIZATION_ITERATION = 250
-NUM_ITERATIONS = 50000
-LEARNING_RATE = 1e-3
-WEIGHT_POS = 1
-WEIGHT_NEG = 1
-WEIGHT_REG = 1
-WEIGHT_CLS = 1
+NUM_ITERATIONS = 10000
+LEARNING_RATE = 1e-4
+WEIGHT_POS = 2
+WEIGHT_NEG = 1.5
+WEIGHT_REG = 1.5
+WEIGHT_CLS = 3
 BATCH_SIZE = 8
 
 
@@ -64,9 +64,8 @@ def compute_loss(
         prediction_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
         target_batch[neg_indices[0], 4, neg_indices[1], neg_indices[2]],
     )
-    cls_ce = nn.functional.mse_loss(
-        prediction_batch[pos_indices[0], 5, pos_indices[1], pos_indices[2]],
-        target_batch[pos_indices[0], 5, pos_indices[1], pos_indices[2]],
+    cls_ce = nn.functional.cross_entropy(
+        prediction_batch[:, 5:20, :, :], target_batch[:, 5:20, :, :]
     )
     return reg_mse, pos_mse, neg_mse, cls_ce
 
@@ -161,9 +160,9 @@ def train(device: str = "cpu") -> None:
     # init optimizer
     optimizer = torch.optim.Adam(detector.parameters(), lr=LEARNING_RATE)
     # init scheduler
-    scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer=optimizer, step_size=10000, gamma=0.1
-    )
+    # scheduler = torch.optim.lr_scheduler.StepLR(
+    #     optimizer=optimizer, step_size=3333, gamma=0.1
+    # )
 
     # load test images
     # these will be evaluated in regular intervals
@@ -220,12 +219,15 @@ def train(device: str = "cpu") -> None:
                 },
                 step=current_iteration,
             )
-
             print(
-                "Iteration: {}, loss: {}, lr: {}".format(
-                    current_iteration, loss.item(), scheduler.get_last_lr()[0]
-                ),
+                "Iteration: {}, loss: {}".format(current_iteration, loss.item()),
             )
+
+            # print(
+            #     "Iteration: {}, loss: {}, lr: {}".format(
+            #         current_iteration, loss.item(), scheduler.get_last_lr()[0]
+            #     ),
+            # )
 
             # Validate every N iterations
             if current_iteration % VALIDATION_ITERATION == 1:
@@ -256,7 +258,7 @@ def train(device: str = "cpu") -> None:
                         )
                         plt.close()
                 detector.train()
-            scheduler.step()
+            # scheduler.step()
 
             utils.save_model(detector, new_path)
             current_iteration += 1
@@ -321,7 +323,7 @@ def validate(
                                 img_bb["height"],
                             ],
                             "area": img_bb["width"] * img_bb["height"],
-                            "category_id": 1,  # TODO replace with predicted category id
+                            "category_id": img_bb["category"],
                             "score": img_bb["score"],
                             "image_id": image_id,
                         }

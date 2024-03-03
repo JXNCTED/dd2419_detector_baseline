@@ -45,7 +45,7 @@ class Detector(nn.Module):
         self.features = models.mobilenet_v2(pretrained=True).features
         # output of mobilenet_v2 will be 1280x15x20 for 480x640 input images
 
-        self.out_channels = 6
+        self.out_channels = 20
         self.head = nn.Conv2d(
             in_channels=1280, out_channels=self.out_channels, kernel_size=1
         )
@@ -136,15 +136,17 @@ class Detector(nn.Module):
                     self.img_width / self.out_cells_x * (bb_index[1] + bb_coeffs[0])
                     - width / 2.0
                 ).item()
-
+                category_hot = o[5:20, bb_index[0], bb_index[1]]
+                category = np.argmax(category_hot).item()
+                score = torch.max(category_hot).item()
                 img_bbs.append(
                     {
                         "width": width,
                         "height": height,
                         "x": x,
                         "y": y,
-                        "score": o[4, bb_index[0], bb_index[1]].item(),
-                        "category": o[5, bb_index[0], bb_index[1]].item(),
+                        "score": score,
+                        "category": category,
                     }
                 )
             bbs.append(img_bbs)
@@ -200,6 +202,7 @@ class Detector(nn.Module):
                 target[i, 1, y_ind, x_ind] = y_cell_pos
                 target[i, 2, y_ind, x_ind] = rel_width
                 target[i, 3, y_ind, x_ind] = rel_height
-                target[i, 5, y_ind, x_ind] = rel_id
-
+                # target[i, 5, y_ind, x_ind] = rel_id
+                target[i, 5:20, y_ind, x_ind] = 0
+                target[i, rel_id + 5, y_ind, x_ind] = 1
         return target
